@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=oldmac
+GenericName=Macintosh compact simule
+Comment=Un Macintosh Plus de 1986 : boitier, clavier, souris et Systeme en 1 bit
+Exec=oldmac
+Icon=org.taz.oldmac
+Terminal=false
+Categories=Utility;Emulator;Game;GTK;
+Keywords=macintosh;apple;vintage;simulateur;retro;1986;
+StartupWMClass=org.taz.oldmac
+StartupNotify=true
