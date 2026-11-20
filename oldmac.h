@@ -17,7 +17,7 @@ typedef struct _cairo cairo_t;   /* evite de trainer cairo.h partout */
 #define MB_H 20                 /* hauteur de la barre de menus        */
 #define TITLE_H 19              /* hauteur d'une barre de titre        */
 #define MB_POPUP_Y (MB_H + 1)   /* haut d'un menu deroulant            */
-#define VERSION_STR "1.0.0"
+#define VERSION_STR "1.1.0"
 
 /* ------------------------------------------------------------------ */
 /* framebuffer 1 bit : 1 octet par pixel, 0 = blanc, 1 = noir          */
@@ -91,9 +91,65 @@ int  disk_used_ko(void);
 int  disk_capacity_ko(void);
 
 /* ------------------------------------------------------------------ */
+/* la telecommande : le Mac pilote la carte BATMino                   */
+/* ------------------------------------------------------------------ */
+#define TEL_W 200
+#define TEL_H 200
+#define TEL_FB_OCTETS (TEL_W * (TEL_H / 8))       /* 5000, comme la dalle */
+#define TEL_PORT_DEFAUT "/dev/ttyACM0"
+#define TEL_RX_MAX 12832                          /* une trame fait 10 003 c */
+
+enum { TEL_BOUTON_COURT = 0, TEL_BOUTON_DOUBLE, TEL_BOUTON_LONG, TEL_BOUTON_R3 };
+#define TEL_GESTES 4
+
+enum { TEL_ATT_RIEN = 0, TEL_ATT_ETAT, TEL_ATT_PAGE, TEL_ATT_GESTE, TEL_ATT_ECRAN };
+
+typedef struct {
+    int  fd, ouvert;          /* le port, et s'il est ouvert             */
+    int  joint;               /* la carte a repondu au moins une fois    */
+    int  muet;                /* elle a cesse de repondre                */
+    char port[64];
+    char status[64];          /* ce qu'on affiche sous la dalle          */
+
+    /* ce que la carte a dit */
+    int  page, curseur, mode, items, hist, top, solde_ct;
+    int  wifi, heure;         /* 1 oui, 0 non, -1 pas dit               */
+    char profil[24], version[16];
+    int  etat_lu;
+
+    /* la dalle de la carte, 200 x 200 en 1 bit, bit de gauche en premier */
+    uint8_t ecran[TEL_FB_OCTETS];
+    int  ecran_lu;
+
+    /* ce qu'on lui demande : une seule commande en vol a la fois */
+    int  dem_p;               /* page a demander, -1 = rien              */
+    int  dem_btn, dem_geste;  /* bouton et geste a jouer                 */
+    int  dem_ecran;           /* trame a redemander                      */
+    int  attente;             /* ce qui est en vol (TEL_ATT_*)           */
+    int  envois, lignes;      /* compteurs, pour les tests               */
+    int64_t attente_ms, dernier_etat_ms, dernier_essai_ms, dernier_rx_ms;
+
+    char rx[TEL_RX_MAX];
+    size_t rx_n;
+} tel_t;
+
+extern tel_t G_TEL;
+void  tel_init(tel_t *t, const char *port);
+int   tel_ouvrir(tel_t *t);
+void  tel_fermer(tel_t *t);
+void  tel_attacher(tel_t *t, int fd);     /* tests : un faux brut pret   */
+int   tel_poll(tel_t *t, int64_t now_ms); /* 1 = quelque chose a redessiner */
+void  tel_demander_etat(tel_t *t);
+void  tel_demander_ecran(tel_t *t);
+void  tel_page(tel_t *t, int n);
+void  tel_bouton(tel_t *t, int n, int geste);
+int   tel_page_suivante(const tel_t *t, int pas);
+const char *tel_geste_nom(int geste);
+
+/* ------------------------------------------------------------------ */
 /* Systeme simule                                                     */
 /* ------------------------------------------------------------------ */
-enum { APP_FINDER = 1, APP_WRITE, APP_PAINT, APP_CONTROL, APP_ABOUT, APP_ALERT, APP_DISK };
+enum { APP_FINDER = 1, APP_WRITE, APP_PAINT, APP_CONTROL, APP_ABOUT, APP_ALERT, APP_DISK, APP_TEL };
 
 #define MAX_WIN 8
 #define WIN_TITLE_MAX 28

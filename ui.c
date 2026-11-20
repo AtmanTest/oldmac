@@ -263,23 +263,32 @@ void ui_draw(cairo_t *cr, const chrome_t *c, fb_t *ecran, sys_t *s, int64_t now_
         cairo_rectangle(cr, sx + 10, sy + 6, c->ecran.w - 40, 2);
         cairo_fill(cr);
     } else {
-        cairo_set_source_rgb(cr, 0.82 * lum + 0.06, 0.95 * lum + 0.04, 0.94 * lum + 0.04);
+        cairo_set_source_rgb(cr, 0.93 * lum + 0.07, 1.00 * lum + 0.05, 0.99 * lum + 0.05);
         cairo_rectangle(cr, sx, sy, c->ecran.w, c->ecran.h);
         cairo_fill(cr);
-        cairo_set_source_rgb(cr, 0.05, 0.08, 0.09);
+        /* l'encre : le framebuffer passe par un masque, agrandi au pixel le
+           plus proche — aucun flou gris, des pixels francs comme sur un tube */
+        cairo_surface_t *masque = cairo_image_surface_create(CAIRO_FORMAT_A8, SCR_W, SCR_H);
+        unsigned char *md = cairo_image_surface_get_data(masque);
+        int ms = cairo_image_surface_get_stride(masque);
         for (int y = 0; y < SCR_H; y++) {
-            for (int x = 0; x < SCR_W; ) {
-                if (ecran->p[(size_t)y * ecran->stride + x]) {
-                    int x0 = x;
-                    while (x < SCR_W && ecran->p[(size_t)y * ecran->stride + x]) x++;
-                    cairo_rectangle(cr, sx + x0 * px, sy + y * py,
-                                    (x - x0) * px + 0.4, py + 0.4);
-                } else x++;
-            }
+            unsigned char *l = md + (size_t)y * ms;
+            const uint8_t *src = ecran->p + (size_t)y * ecran->stride;
+            for (int x = 0; x < SCR_W; x++) l[x] = src[x] ? 255 : 0;
         }
-        cairo_fill(cr);
+        cairo_surface_mark_dirty(masque);
+        cairo_pattern_t *encre = cairo_pattern_create_for_surface(masque);
+        cairo_pattern_set_filter(encre, CAIRO_FILTER_NEAREST);
+        cairo_save(cr);
+        cairo_translate(cr, sx, sy);
+        cairo_scale(cr, px, py);
+        cairo_set_source_rgb(cr, 0.02, 0.03, 0.04);
+        cairo_mask(cr, encre);
+        cairo_restore(cr);
+        cairo_pattern_destroy(encre);
+        cairo_surface_destroy(masque);
         /* lignes de balayage discretes */
-        cairo_set_source_rgba(cr, 0, 0, 0, 0.055);
+        cairo_set_source_rgba(cr, 0, 0, 0, 0.03);
         cairo_set_line_width(cr, py * 0.30);
         for (int y = 0; y < SCR_H; y += 2) {
             cairo_move_to(cr, sx, sy + y * py);

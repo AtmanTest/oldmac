@@ -69,7 +69,7 @@ void sys_init(sys_t *s)
     memset(s, 0, sizeof(*s));
     s->horloge = 1;
     s->ecran_allume = 1;
-    s->bright = 82;
+    s->bright = 92;
     s->son = 60;
     s->annee = 1986;
     s->boot_phase = 0;
@@ -105,7 +105,11 @@ void sys_init(sys_t *s)
     icons[icon_n++] = (icon_t){ 30, 46, -1, "Macintosh HD" };
     icons[icon_n++] = (icon_t){ 30, 126, APP_WRITE, "MacWrite" };
     icons[icon_n++] = (icon_t){ 30, 206, APP_PAINT, "MacPaint" };
+    icons[icon_n++] = (icon_t){ 30, 278, APP_TEL, "BATMino" };
     icons[icon_n++] = (icon_t){ 440, 250, -2, "Corbeille" };
+
+    /* la telecommande de la carte : le port est attribue, pas ouvert */
+    tel_init(&G_TEL, TEL_PORT_DEFAUT);
 }
 
 /* ------------------------------------------------------------------ */
@@ -170,11 +174,26 @@ static void icone_corbeille(fb_t *f, int x, int y)
     for (int i = 0; i < 22; i++) fb_pset(f, x + 26, y + 7 + i, 1);
 }
 
+static void icone_carte(fb_t *f, int x, int y)
+{
+    /* la carte e-paper : boitier, dalle claire, deux touches, l'ombre */
+    fb_rrect(f, x + 2, y + 2, 28, 22, 2, 1);
+    fb_rect(f, x + 5, y + 5, 22, 13, 0);
+    fb_frame(f, x + 5, y + 5, 22, 13);
+    fb_rect(f, x + 8, y + 8, 15, 2, 1);
+    fb_rect(f, x + 8, y + 12, 9, 2, 1);
+    fb_rect(f, x + 8, y + 20, 6, 2, 0);
+    fb_rect(f, x + 18, y + 20, 6, 2, 0);
+    for (int i = 0; i < 26; i++) fb_pset(f, x + 4 + i, y + 25, 1);
+    for (int i = 0; i < 22; i++) fb_pset(f, x + 30, y + 4 + i, 1);
+}
+
 static void icone_app(fb_t *f, int kind, int x, int y)
 {
     switch (kind) {
     case APP_WRITE: icone_doc(f, x, y); break;
     case APP_PAINT: icone_pinceau(f, x, y); break;
+    case APP_TEL:   icone_carte(f, x, y); break;
     case -2:        icone_corbeille(f, x, y); break;
     default:        icone_disque(f, x, y); break;
     }
@@ -493,7 +512,7 @@ static void draw_about(fb_t *f, win_t *w)
     tx_draw(f, x + 88, y + 60, "ROM 128 Ko", 11, TF_NORMAL);
 
     fb_hline(f, x + 10, y + 76, cw - 20, 1);
-    tx_draw(f, x + 14, y + 82, "oldmac 1.0.0", 11, TF_BOLD);
+    tx_draw(f, x + 14, y + 82, "oldmac " VERSION_STR, 11, TF_BOLD);
     tx_draw(f, x + 14, y + 96, "simulateur de Macintosh compact", 10, TF_NORMAL);
     tx_draw(f, x + 14, y + 108, "ecrit en C, GTK4 et cairo", 10, TF_NORMAL);
     tx_draw(f, x + 14, y + 120, "@paristzou  -  juste pour les filles", 10, TF_NORMAL);
@@ -523,6 +542,73 @@ static void draw_alert(fb_t *f, win_t *w)
 }
 
 /* ------------------------------------------------------------------ */
+/* --- BATMino : la carte vue depuis le Mac -------------------------- */
+#define TEL_BTN_W      56
+#define TEL_BTN_H      17
+#define TEL_BTN_STRIDE 60
+#define TEL_BTN_X0     5
+
+static void tel_bouton_dessine(fb_t *f, int x, int y, int w, const char *label)
+{
+    fb_rect(f, x, y, w, TEL_BTN_H, 0);
+    fb_frame(f, x, y, w, TEL_BTN_H);
+    int taille = 10;
+    int tw = tx_width(label, taille, TF_BOLD);
+    if (tw > w - 6) { taille = 9; tw = tx_width(label, taille, TF_BOLD); }
+    tx_draw(f, x + (w - tw) / 2, y + 3, label, taille, TF_BOLD);
+}
+
+static void draw_tel(fb_t *f, win_t *w, sys_t *s)
+{
+    (void)s;
+    tel_t *t = &G_TEL;
+    int x = w->x + 1, y = w->y + TITLE_H + 1;
+    int cw = w->w - 2, ch = w->h - TITLE_H - 2;
+    fb_rect(f, x, y, cw, ch, 0);
+
+    /* la dalle de la carte, pixel pour pixel, sans rien inventer */
+    int bx = x + (cw - TEL_W - 2) / 2, by = y + 5;
+    /* un cadre noir de deux pixels : la dalle se detache sur la photo */
+    fb_frame(f, bx - 2, by - 2, TEL_W + 5, TEL_H + 5);
+    fb_frame(f, bx - 1, by - 1, TEL_W + 3, TEL_H + 3);
+    fb_frame(f, bx, by, TEL_W + 2, TEL_H + 2);
+    if (t->ecran_lu) {
+        for (int py = 0; py < TEL_H; py++) {
+            const uint8_t *ligne = t->ecran + py * (TEL_W / 8);
+            for (int px = 0; px < TEL_W; px++)
+                if ((ligne[px >> 3] >> (7 - (px & 7))) & 1)
+                    fb_pset(f, bx + 1 + px, by + 1 + py, 1);
+        }
+    } else {
+        tx_draw(f, bx + 12, by + TEL_H / 2 - 6, "pas encore d'image", 10, TF_NORMAL);
+    }
+
+    /* sous la dalle : le cable, puis ce que la carte raconte */
+    char l[128];
+    int ty = by + TEL_H + 8;
+    snprintf(l, sizeof(l), "%.20s - %.34s", t->port, t->status);
+    tx_draw(f, x + 8, ty, l, 10, TF_BOLD);
+    if (t->etat_lu) {
+        snprintf(l, sizeof(l), "page %d - %d elements - %.10s", t->page, t->items, t->profil);
+        tx_draw(f, x + 8, ty + 13, l, 10, TF_NORMAL);
+        snprintf(l, sizeof(l), "wifi %s - heure %s - v%.10s",
+                 t->wifi == 1 ? "oui" : t->wifi == 0 ? "non" : "n.d.",
+                 t->heure == 1 ? "oui" : t->heure == 0 ? "non" : "n.d.",
+                 t->version);
+        tx_draw(f, x + 8, ty + 26, l, 10, TF_NORMAL);
+    } else {
+        tx_draw(f, x + 8, ty + 13, "etat : n.d.", 10, TF_NORMAL);
+        tx_draw(f, x + 8, ty + 26, "dalle : n.d.", 10, TF_NORMAL);
+    }
+
+    /* les quatre touches, comme sur la carte */
+    int bby = y + ch - 24;
+    tel_bouton_dessine(f, x + TEL_BTN_X0, bby, TEL_BTN_W, "< page");
+    tel_bouton_dessine(f, x + TEL_BTN_X0 + TEL_BTN_STRIDE, bby, TEL_BTN_W, "page >");
+    tel_bouton_dessine(f, x + TEL_BTN_X0 + 2 * TEL_BTN_STRIDE, bby, TEL_BTN_W, "bouton 1");
+    tel_bouton_dessine(f, x + TEL_BTN_X0 + 3 * TEL_BTN_STRIDE, bby, TEL_BTN_W, "bouton 2");
+}
+
 void app_draw(win_t *w, fb_t *f)
 {
     barre_titre(f, w);
@@ -533,6 +619,7 @@ void app_draw(win_t *w, fb_t *f)
     case APP_CONTROL: draw_control(f, w, &G); break;
     case APP_ABOUT:   draw_about(f, w); break;
     case APP_ALERT:   draw_alert(f, w); break;
+    case APP_TEL:     draw_tel(f, w, &G); break;
     default: break;
     }
 }
@@ -796,6 +883,14 @@ void app_open(sys_t *s, int kind)
     case APP_ALERT:
         w = wm_open(&s->wm, APP_ALERT, "Alerte", 130, 120, 260, 110);
         break;
+    case APP_TEL: {
+        w = wm_open(&s->wm, APP_TEL, "BATMino", 150, 24, 248, 306);
+        /* on branche le cable et on demande ce qu'elle a sur la dalle */
+        tel_ouvrir(&G_TEL);
+        tel_demander_etat(&G_TEL);
+        tel_demander_ecran(&G_TEL);
+        break;
+    }
     default:
         break;
     }
@@ -823,6 +918,7 @@ static void alerte(sys_t *s, const char *a, const char *b, const char *c, const 
 
 void app_close(win_t *w)
 {
+    /* la telecommande garde son cable : on ferme la fenetre, pas la carte */
     if (!w->st) return;
     if (w->kind == APP_WRITE || w->kind == APP_PAINT) free(w->st);
     else if (w->kind == APP_FINDER) free(w->st);
@@ -962,6 +1058,22 @@ void app_click(sys_t *s, win_t *w, int lx, int ly, int double_click)
         }
         break;
     }
+    case APP_TEL: {
+        int bby = (w->h - TITLE_H - 2) - 24;
+        if (cy >= bby && cy < bby + TEL_BTN_H && lx >= TEL_BTN_X0) {
+            int k = (lx - TEL_BTN_X0) / TEL_BTN_STRIDE;
+            if (k == 0)      tel_page(&G_TEL, tel_page_suivante(&G_TEL, -1));
+            else if (k == 1) tel_page(&G_TEL, tel_page_suivante(&G_TEL, 1));
+            else if (k == 2) tel_bouton(&G_TEL, 1, TEL_BOUTON_COURT);
+            else if (k == 3) tel_bouton(&G_TEL, 2, TEL_BOUTON_COURT);
+            break;
+        }
+        /* clic sur la dalle : redemander l'image, comme un rafraichissement */
+        int bx = (w->w - 2 - TEL_W - 2) / 2;
+        if (lx >= bx && lx < bx + TEL_W + 2 && cy >= 5 && cy < 5 + TEL_H + 2)
+            tel_demander_ecran(&G_TEL);
+        break;
+    }
     case APP_ABOUT:
     case APP_ALERT:
         wm_close(&s->wm, w->id);
@@ -979,6 +1091,7 @@ static void icone_click(sys_t *s, int x, int y, int dbl)
             if (dbl) {
                 if (ic->kind == APP_WRITE) app_open(s, APP_WRITE);
                 else if (ic->kind == APP_PAINT) app_open(s, APP_PAINT);
+                else if (ic->kind == APP_TEL) app_open(s, APP_TEL);
                 else if (ic->kind == -1) app_open(s, APP_FINDER);
                 else if (ic->kind == -2) alerte(s, "La corbeille est vide.", "Vider la corbeille depuis", "le menu Special.", NULL);
             }
@@ -1061,6 +1174,14 @@ void app_key_screen(sys_t *s, unsigned key, const char *txt)
         if (key >= '1' && key <= '5') st->tool = (int)(key - '1');
         break;
     }
+    case APP_TEL:
+        if (key == 0xff51)      tel_page(&G_TEL, tel_page_suivante(&G_TEL, -1));
+        else if (key == 0xff53) tel_page(&G_TEL, tel_page_suivante(&G_TEL, 1));
+        else if (key == 'b')    tel_bouton(&G_TEL, 1, TEL_BOUTON_COURT);
+        else if (key == 'n')    tel_bouton(&G_TEL, 2, TEL_BOUTON_COURT);
+        else if (key == 'r')    tel_demander_ecran(&G_TEL);
+        else if (key == 'e')    tel_demander_etat(&G_TEL);
+        break;
     default: break;
     }
 }
@@ -1170,7 +1291,9 @@ void app_menu(sys_t *s, int m, int item)
         return;
     }
     if (m == 4) {
-        if (strcmp(t, "Vider la corbeille") == 0) {
+        if (strcmp(t, "BATMino") == 0) {
+            app_open(s, APP_TEL);
+        } else if (strcmp(t, "Vider la corbeille") == 0) {
             disk_empty_trash(&s->disk);
             snprintf(s->statut, sizeof(s->statut), "Corbeille videe");
             s->statut_ms = 2500;

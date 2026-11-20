@@ -8,6 +8,6 @@ Exec=oldmac
 Icon=org.taz.oldmac
 Terminal=false
 Categories=Utility;Emulator;Game;GTK;
-Keywords=macintosh;apple;vintage;simulateur;retro;1986;
+Keywords=macintosh;apple;vintage;simulateur;retro;1986;batmino;esp32;dalle;
 StartupWMClass=org.taz.oldmac
 StartupNotify=true

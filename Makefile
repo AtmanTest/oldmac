@@ -1,7 +1,7 @@
 CC      ?= gcc
 CFLAGS  ?= -O2 -Wall -Wextra -std=gnu11
 PKGS     = gtk4 cairo pangocairo
-SRC      = main.c fb.c disk.c wm.c apps.c ui.c
+SRC      = main.c fb.c disk.c wm.c apps.c ui.c telecommande.c
 OBJ      = $(SRC:.c=.o)
 
 all: oldmac
@@ -15,8 +15,8 @@ oldmac: $(OBJ)
 tests: tests_oldmac
 	./tests_oldmac
 
-tests_oldmac: tests.c fb.c disk.c wm.c apps.c ui.c
-	$(CC) $(CFLAGS) -o $@ tests.c fb.c disk.c wm.c apps.c ui.c \
+tests_oldmac: tests.c fb.c disk.c wm.c apps.c ui.c telecommande.c
+	$(CC) $(CFLAGS) -o $@ tests.c fb.c disk.c wm.c apps.c ui.c telecommande.c \
 	  $$(pkg-config --cflags --libs $(PKGS)) -lm
 
 install: oldmac

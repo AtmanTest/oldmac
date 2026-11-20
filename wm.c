@@ -105,10 +105,11 @@ static const char *MENUS[5][10] = {
       "Imprimer l'ecran", "--", "Mettre a la corbeille", NULL, NULL },
     { "Annuler", "--", "Couper", "Copier", "Coller", "Tout effacer", NULL, NULL, NULL, NULL },
     { "Trier par nom", "Trier par date", "--", "Infos du disque", "Rafraichir", NULL, NULL, NULL, NULL, NULL },
-    { "Vider la corbeille", "--", "Plein ecran", "A propos du projet", NULL, NULL, NULL, NULL, NULL, NULL },
+    { "Vider la corbeille", "--", "BATMino", "--", "Plein ecran", "A propos du projet",
+      NULL, NULL, NULL, NULL },
 };
 
-static const int MENUS_N[5] = { 10, 8, 6, 5, 4 };
+static const int MENUS_N[5] = { 10, 8, 6, 5, 6 };
 
 int menu_nitems(int m) { return (m >= 0 && m < 5) ? MENUS_N[m] : 0; }
 
